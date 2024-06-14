@@ -1,4 +1,4 @@
-name: Create Release
+name: Increment Tag and Create Release
 
 on:
   push:
@@ -6,53 +6,73 @@ on:
       - main
 
 jobs:
-  create_release:
+  increment_tag_and_release:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Fetch all tags
+        run: git fetch --tags
 
-      - name: Get the current tag
-        id: current_tag
-        run: |
-          TAG=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null || echo "v0.0.0")
-          echo "TAG=$TAG" >> $GITHUB_ENV
+      - name: Get the latest tag
+        id: get_latest_tag
+        run: echo ::set-output name=LATEST_TAG::$(git describe --tags `git rev-list --tags --max-count=1`)
 
-      - name: Bump version and create tag
-        id: tag_version
+      - name: Calculate next version
+        id: calculate_version
         run: |
-          CURRENT_TAG=${{ env.TAG }}
-          if [[ "$CURRENT_TAG" == "v0.0.0" ]]; then
-            NEW_TAG="v1.0.0"
+          LATEST_TAG=${{ steps.get_latest_tag.outputs.LATEST_TAG }}
+          echo "Latest tag: $LATEST_TAG"
+          # Extract the current version parts
+          VERSION_REGEX="^v([0-9]+)\.([0-9]+)\.([0-9]+)$"
+          if [[ $LATEST_TAG =~ $VERSION_REGEX ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
           else
-            NEW_TAG=$(echo $CURRENT_TAG | awk -F. -v OFS=. '{$NF = $NF + 1 ; print}')
+            echo "Invalid tag format: $LATEST_TAG"
+            exit 1
           fi
-          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-          git tag $NEW_TAG
-          git push https://x-access-token:${{ secrets.PAT }}@github.com/${{ github.repository }} $NEW_TAG
 
-      - name: Create GitHub Release
-        id: create_release
+          # Increment the patch version
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_MINOR=$MINOR
+          NEXT_MAJOR=$MAJOR
+
+          # Check if patch needs to be reset and minor incremented
+          if [[ $NEXT_PATCH -ge 10 ]]; then
+            NEXT_PATCH=0
+            NEXT_MINOR=$((MINOR + 1))
+          fi
+
+          # Check if minor needs to be reset and major incremented
+          if [[ $NEXT_MINOR -ge 10 ]]; then
+            NEXT_MINOR=0
+            NEXT_MAJOR=$((MAJOR + 1))
+          fi
+
+          NEXT_VERSION="v${NEXT_MAJOR}.${NEXT_MINOR}.${NEXT_PATCH}"
+          echo "Next version: $NEXT_VERSION"
+          echo ::set-output name=NEXT_VERSION::$NEXT_VERSION
+
+      - name: Create new tag
+        id: create_tag
+        run: |
+          NEXT_VERSION=${{ steps.calculate_version.outputs.NEXT_VERSION }}
+          git tag $NEXT_VERSION
+          git push origin $NEXT_VERSION
+
+      - name: Create GitHub release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.NEW_TAG }}
-          release_name: Release ${{ env.NEW_TAG }}
+          tag_name: ${{ steps.calculate_version.outputs.NEXT_VERSION }}
+          release_name: Release ${{ steps.calculate_version.outputs.NEXT_VERSION }}
+          body: |
+            Changes in this release:
+            - Describe your changes here
           draft: false
           prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./path/to/your/asset.zip
-          asset_name: asset.zip
-          asset_content_type: application/zip
