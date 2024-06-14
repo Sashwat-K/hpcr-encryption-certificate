@@ -8,5 +8,9 @@ The repository holds the latest encryption certificate for [Confidential computi
 
 This Go library is required for [Sashwat-K/lib-hpcr](https://github.com/Sashwat-K/lib-hpcr).
 
+## Other Repos
+1. [Sashwat-K/lib-hpcr](https://github.com/Sashwat-K/lib-hpcr) - Go library for Hyper Protect Virtual Server (IBM Cloud & On Prem)
+2. [Sashwat-K/hpcr-contract-schema](https://github.com/Sashwat-K/hpcr-contract-schema) - Go library with HPCR's latest contract schema
+
 ## Questions
 Shoot mail @ sashwat.k@ibm.com
