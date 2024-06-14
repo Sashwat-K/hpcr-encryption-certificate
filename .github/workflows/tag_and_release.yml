@@ -1,4 +1,4 @@
-name: hpcr-encryption-certificate - Increment Tag and Create Release
+name: Increment Tag and Create Release
 
 on:
   push:
